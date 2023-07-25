@@ -1,0 +1,68 @@
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- none
+
+stages:
+- stage: "BuildStage"
+  displayName: BuildStage
+  jobs:
+  - job: "BuildJob"
+    pool:
+      vmImage: 'windows-latest'
+
+    variables:
+      buildConfiguration: 'Release'
+
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: restore
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+        feedsToUse: 'select'
+
+
+    - task: DotNetCoreCLI@2
+      displayName: build
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration)'
+    - task: DotNetCoreCLI@2
+      displayName: publish
+      inputs:
+        command: 'publish'
+        publishWebProjects: true
+        arguments: '--configuration $(buildConfiguration) --output $(build.ArtifactStagingDirectory)'
+    - task: PublishBuildArtifacts@1
+      displayName: publishartifacts
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+- stage: "DeploytoDevStage"
+  displayName: DeploytoDevStage
+  dependsOn: "BuildStage"
+  jobs:
+  - job: "DeploytoDevJob"
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: DownloadBuildArtifacts@1
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'drop'
+        downloadPath: '$(System.ArtifactsDirectory)'
+    - task: AzureRmWebAppDeployment@4
+      inputs:
+        ConnectionType: 'AzureRM'
+        azureSubscription: 'test123'
+        appType: 'webApp'
+        WebAppName: 'deploytodev'
+        packageForLinux: '$(System.ArtifactsDirectory)/**/*.zip'
+    
